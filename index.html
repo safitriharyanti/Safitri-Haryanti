@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Dashboard Penjualan</title>
+<title>Dashboard Penjualan AI</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf"></script>
@@ -12,180 +11,182 @@
 <style>
 body { font-family: Arial; margin:0; background:#f4f6f9;}
 header { background:#1e293b; color:white; padding:15px; text-align:center;}
-
-.container { padding:15px; }
-
-.grid {
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px,1fr));
-  gap:15px;
-}
-
-.card {
-  background:white;
-  padding:15px;
-  border-radius:10px;
-  box-shadow:0 4px 8px rgba(0,0,0,0.1);
-}
-
-input, select, button {
-  padding:10px;
-  width:100%;
-  margin-top:8px;
-  font-size:14px;
-}
-
-button {
-  background:#2563eb;
-  color:white;
-  border:none;
-}
-
-canvas {
-  max-width:100%;
-}
-
-/* RESPONSIVE HP */
-@media(max-width:600px){
-  header { font-size:16px; }
-  h3 { font-size:16px; }
-}
+.container { padding:15px;}
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:15px;}
+.card { background:white; padding:15px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1);}
+input,select,button { padding:10px; width:100%; margin-top:8px;}
+button { background:#2563eb; color:white; border:none; cursor:pointer;}
 </style>
 </head>
 
 <body>
 
-<header>📊 Dashboard Penjualan</header>
+<header>📊 Dashboard Penjualan AI Otomatis</header>
 
 <div class="container">
 
+<!-- INPUT -->
 <div class="card">
-<h3>Input Data</h3>
+<h3>Input Data Manual</h3>
 <input id="produk" placeholder="Produk">
 <input id="amount" type="number" placeholder="Pendapatan">
 <input id="discount" type="number" placeholder="Diskon">
 <input id="fee" type="number" placeholder="Biaya">
 <input id="province" placeholder="Provinsi">
 <input id="city" placeholder="Kota">
-
 <select id="payment">
 <option>Cash</option>
 <option>GoPay</option>
 <option>Transfer</option>
 </select>
-
-<button onclick="tambah()">Tambah</button>
+<button onclick="tambah()">Tambah Data</button>
 </div>
 
+<!-- KPI -->
 <div class="grid">
-<div class="card"><h3>Total Revenue</h3><p id="revenue">0</p></div>
-<div class="card"><h3>Total Order</h3><p id="order">0</p></div>
-<div class="card"><h3>AOV</h3><p id="aov">0</p></div>
+<div class="card"><h3>Total Revenue</h3><p id="revenueEl">0</p></div>
+<div class="card"><h3>Total Order</h3><p id="orderEl">0</p></div>
+<div class="card"><h3>AOV</h3><p id="aovEl">0</p></div>
 </div>
 
+<!-- REGIONAL -->
 <div class="card">
 <h3>Regional</h3>
 <ul id="region"></ul>
 </div>
 
+<!-- PAYMENT -->
 <div class="card">
 <h3>Payment</h3>
 <canvas id="paymentChart"></canvas>
 </div>
 
+<!-- FINANCIAL -->
 <div class="grid">
-<div class="card"><h3>Pendapatan</h3><p id="kotor">0</p></div>
-<div class="card"><h3>Diskon</h3><p id="diskon">0</p></div>
-<div class="card"><h3>Biaya</h3><p id="biaya">0</p></div>
-<div class="card"><h3>Laba</h3><p id="laba">0</p></div>
+<div class="card"><h3>Kotor</h3><p id="kotorEl">0</p></div>
+<div class="card"><h3>Diskon</h3><p id="diskonEl">0</p></div>
+<div class="card"><h3>Biaya</h3><p id="biayaEl">0</p></div>
+<div class="card"><h3>Laba</h3><p id="labaEl">0</p></div>
 </div>
 
+<!-- ZAKAT -->
 <div class="card">
 <h3>Zakat 2.5%</h3>
-<p id="zakat">0</p>
+<p id="zakatEl">0</p>
 </div>
 
+<!-- AI -->
 <div class="card">
 <h3>🤖 AI Insight</h3>
-<p id="ai">Klik analisis</p>
+<p id="ai">Menunggu data...</p>
 <button onclick="aiInsight()">Analisis</button>
-</div>
-
-<div class="card">
-<button onclick="downloadPDF()">Download PDF</button>
 </div>
 
 </div>
 
 <script>
 
+// ==========================
+// AUTO DATA (SIMULASI GOOGLE AI)
+// ==========================
+async function loadAutoData(){
+try{
+let res = await fetch("https://dummyjson.com/carts"); // bisa diganti API Google Sheets / AI
+let json = await res.json();
+
+data = json.carts.map(c=>({
+produk:"Produk",
+amount:c.total,
+discount:c.discountedTotal ? c.total - c.discountedTotal : 0,
+fee:Math.random()*5000,
+province:"Jawa Barat",
+city:"Bandung",
+payment:["Cash","GoPay","Transfer"][Math.floor(Math.random()*3)]
+}));
+
+render();
+}catch(e){
+console.log("Gagal load auto data", e);
+}
+}
+
+// ==========================
+// DATA STORAGE
+// ==========================
 let data = JSON.parse(localStorage.getItem("data")) || [];
 
-// ambil element (WAJIB)
-const revenueEl = document.getElementById("revenue");
-const orderEl = document.getElementById("order");
-const aovEl = document.getElementById("aov");
-const regionEl = document.getElementById("region");
-const kotorEl = document.getElementById("kotor");
-const diskonEl = document.getElementById("diskon");
-const biayaEl = document.getElementById("biaya");
-const labaEl = document.getElementById("laba");
-const zakatEl = document.getElementById("zakat");
-const aiEl = document.getElementById("ai");
-
+// ==========================
+// CHART
+// ==========================
 const chart = new Chart(document.getElementById("paymentChart"), {
 type:"pie",
-data:{labels:["Cash","GoPay","Transfer"], datasets:[{data:[0,0,0]}]}
+data:{
+labels:["Cash","GoPay","Transfer"],
+datasets:[{data:[0,0,0]}]
+}
 });
 
+// ==========================
+// TAMBAH DATA MANUAL
+// ==========================
 function tambah(){
 let d={
-produk:document.getElementById("produk").value,
-amount:+document.getElementById("amount").value,
-discount:+document.getElementById("discount").value||0,
-fee:+document.getElementById("fee").value||0,
-province:document.getElementById("province").value,
-city:document.getElementById("city").value,
-payment:document.getElementById("payment").value
+produk:produk.value,
+amount:+amount.value,
+discount:+discount.value||0,
+fee:+fee.value||0,
+province:province.value,
+city:city.value,
+payment:payment.value
 };
 
 if(!d.produk||!d.amount) return alert("Isi data!");
 
 data.push(d);
+save();
 render();
 }
 
+// ==========================
+// SAVE
+// ==========================
+function save(){
+localStorage.setItem("data",JSON.stringify(data));
+}
+
+// ==========================
+// RENDER DASHBOARD
+// ==========================
 function render(){
 
 let revenue=data.reduce((a,b)=>a+b.amount,0);
 let order=data.length;
-let aov=order?(revenue/order).toFixed(2):0;
+let aov=order?(revenue/order).toFixed(0):0;
 
 revenueEl.innerText=revenue;
 orderEl.innerText=order;
 aovEl.innerText=aov;
 
+// REGIONAL
 let regionCount={};
 data.forEach(d=>{
 let key=d.province+" - "+d.city;
 regionCount[key]=(regionCount[key]||0)+1;
 });
 
-regionEl.innerHTML="";
+region.innerHTML="";
 Object.entries(regionCount).forEach(r=>{
-regionEl.innerHTML+=`<li>${r[0]} : ${r[1]}</li>`;
+region.innerHTML+=`<li>${r[0]} : ${r[1]}</li>`;
 });
 
-let cash=0,gopay=0,transfer=0;
-data.forEach(d=>{
-if(d.payment=="Cash") cash++;
-if(d.payment=="GoPay") gopay++;
-if(d.payment=="Transfer") transfer++;
-});
+// PAYMENT
+let pay={Cash:0,GoPay:0,Transfer:0};
+data.forEach(d=> pay[d.payment]++);
 
-chart.data.datasets[0].data=[cash,gopay,transfer];
+chart.data.datasets[0].data=[pay.Cash,pay.GoPay,pay.Transfer];
 chart.update();
 
+// FINANCIAL
 let kotor=revenue;
 let diskon=data.reduce((a,b)=>a+b.discount,0);
 let biaya=data.reduce((a,b)=>a+b.fee,0);
@@ -196,27 +197,51 @@ diskonEl.innerText=diskon;
 biayaEl.innerText=biaya;
 labaEl.innerText=laba;
 
-zakatEl.innerText=(laba*0.025).toFixed(2);
+zakatEl.innerText=(laba*0.025).toFixed(0);
 
-localStorage.setItem("data",JSON.stringify(data));
+save();
 }
 
+// ==========================
+// AI INSIGHT (LEBIH CERDAS)
+// ==========================
 function aiInsight(){
-if(data.length==0) return aiEl.innerText="Belum ada data";
+
+if(data.length==0){
+ai.innerText="Belum ada data";
+return;
+}
 
 let revenue=data.reduce((a,b)=>a+b.amount,0);
 let avg=revenue/data.length;
 
-aiEl.innerText = avg>50000
-? "Penjualan tinggi (premium market)"
-: "Perlu strategi promosi";
+// cari payment terbaik
+let pay={Cash:0,GoPay:0,Transfer:0};
+data.forEach(d=> pay[d.payment]++);
+
+let bestPay = Object.keys(pay).reduce((a,b)=> pay[a]>pay[b]?a:b);
+
+let insight="";
+
+if(avg>50000){
+insight+="Penjualan tinggi. Fokus produk premium.\n";
+}else{
+insight+="Penjualan rendah. Perlu promo.\n";
 }
 
+insight+=`Metode pembayaran terbaik: ${bestPay}`;
+
+ai.innerText=`Revenue ${revenue} | Avg ${avg}\n${insight}`;
+}
+
+// ==========================
+// PDF
+// ==========================
 function downloadPDF(){
 const { jsPDF } = window.jspdf;
 const doc = new jsPDF();
 
-doc.text("Laporan Keuangan",10,10);
+doc.text("Laporan Penjualan",10,10);
 doc.text("Revenue: "+revenueEl.innerText,10,20);
 doc.text("Laba: "+labaEl.innerText,10,30);
 doc.text("Zakat: "+zakatEl.innerText,10,40);
@@ -224,6 +249,10 @@ doc.text("Zakat: "+zakatEl.innerText,10,40);
 doc.save("laporan.pdf");
 }
 
+// ==========================
+// INIT
+// ==========================
+loadAutoData(); // AUTO dari API
 render();
 
 </script>
