@@ -1,60 +1,45 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
 import requests, json
-import google.generativeai as genai
 
 app = FastAPI()
 
-URL = "PASTE_GOOGLE_SHEETS_JSON"
+URL = "https://docs.google.com/spreadsheets/d/13k5ACrv6J4WLdWT_-nMQzMNmQHrMjL_7UNZLfx_HsWU/gviz/tq?tqx=out:json&gid=1697368028"
 
-# =====================
-# MODEL KASIR
-# =====================
-class Order(BaseModel):
-    produk: str
-    amount: float
-    payment: str
-    province: str
-    city: str
-
-# =====================
-# GET DATA
-# =====================
 @app.get("/data")
 def get_data():
-    res = requests.get(URL)
-    text = res.text
-    json_data = json.loads(text[47:-2])
-    rows = json_data['table']['rows']
+    try:
+        res = requests.get(URL)
+        text = res.text
 
-    data = []
-    for r in rows:
-        data.append({
-            "produk": r['c'][0]['v'] if r['c'][0] else "",
-            "order_amount": float(r['c'][1]['v']) if r['c'][1] else 0,
-            "payment": r['c'][10]['v'] if r['c'][10] else ""
-        })
-    return data
+        # 🔥 DEBUG
+        print(text[:200])
 
-# =====================
-# KASIR (SIMULASI)
-# =====================
-@app.post("/order")
-def create_order(order: Order):
-    return {"message": "Order berhasil", "data": order}
+        # parsing gviz
+        json_data = json.loads(text[47:-2])
+        rows = json_data["table"]["rows"]
 
-# =====================
-# AI INSIGHT (GEMINI)
-# =====================
-genai.configure(api_key="PASTE_API_KEY")
+        data = []
 
-@app.get("/ai")
-def ai_insight():
+        for r in rows:
+            c = r["c"]
 
-    model = genai.GenerativeModel("gemini-pro")
+            data.append({
+                "produk": c[0]["v"] if c[0] else "",
+                "order_amount": float(c[1]["v"]) if c[1] else 0,
+                "sku_subtotal": float(c[2]["v"]) if c[2] else 0,
+                "total_discount": float(c[3]["v"]) if c[3] else 0,
+                "service_fee": float(c[4]["v"]) if c[4] else 0,
+                "handling_fee": float(c[5]["v"]) if c[5] else 0,
+                "shipping_fee": float(c[6]["v"]) if c[6] else 0,
+                "insurance": float(c[7]["v"]) if c[7] else 0,
+                "province": c[8]["v"] if c[8] else "",
+                "city": c[9]["v"] if c[9] else "",
+                "payment": c[10]["v"] if c[10] else "Cash"
+            })
 
-    prompt = "Analisis penjualan dan berikan 3 rekomendasi bisnis singkat"
+        print("DATA:", data[:3])  # cek output
 
-    response = model.generate_content(prompt)
+        return data
 
-    return {"insight": response.text}
+    except Exception as e:
+        return {"error": str(e)}
