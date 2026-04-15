@@ -3,257 +3,270 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard Penjualan AI</title>
+<title>Enterprise SmartPOS Dashboard</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf"></script>
 
 <style>
-body { font-family: Arial; margin:0; background:#f4f6f9;}
-header { background:#1e293b; color:white; padding:15px; text-align:center;}
-.container { padding:15px;}
+body { margin:0; font-family:Arial; background:#0f172a; color:white;}
+.sidebar {
+width:220px; height:100vh; position:fixed;
+background:#020617; padding:20px;
+}
+.sidebar h2 { font-size:18px; }
+.sidebar p { color:#94a3b8; cursor:pointer; }
+
+.main { margin-left:240px; padding:20px; }
+
 .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:15px;}
-.card { background:white; padding:15px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1);}
-input,select,button { padding:10px; width:100%; margin-top:8px;}
-button { background:#2563eb; color:white; border:none; cursor:pointer;}
+.card {
+background:#1e293b;
+padding:15px;
+border-radius:12px;
+box-shadow:0 4px 10px rgba(0,0,0,0.3);
+}
+
+input,select {
+padding:8px; width:100%; margin-top:5px;
+background:#020617; color:white; border:none;
+}
 </style>
 </head>
 
 <body>
 
-<header>📊 Dashboard Penjualan AI Otomatis</header>
+<div class="sidebar">
+<h2>📊 SmartPOS</h2>
+<p>Dashboard</p>
+<p>Laporan</p>
+<p>AI Insight</p>
+</div>
 
-<div class="container">
+<div class="main">
 
-<!-- INPUT -->
+<h2>Enterprise Dashboard</h2>
+
+<!-- FILTER -->
+<div class="grid">
 <div class="card">
-<h3>Input Data Manual</h3>
-<input id="produk" placeholder="Produk">
-<input id="amount" type="number" placeholder="Pendapatan">
-<input id="discount" type="number" placeholder="Diskon">
-<input id="fee" type="number" placeholder="Biaya">
-<input id="province" placeholder="Provinsi">
-<input id="city" placeholder="Kota">
-<select id="payment">
-<option>Cash</option>
-<option>GoPay</option>
-<option>Transfer</option>
-</select>
-<button onclick="tambah()">Tambah Data</button>
+<h3>Filter</h3>
+<input type="date" id="startDate">
+<input type="date" id="endDate">
+<select id="filterProduk"></select>
+<button onclick="applyFilter()">Apply</button>
+</div>
 </div>
 
 <!-- KPI -->
 <div class="grid">
-<div class="card"><h3>Total Revenue</h3><p id="revenueEl">0</p></div>
-<div class="card"><h3>Total Order</h3><p id="orderEl">0</p></div>
+<div class="card"><h3>Revenue</h3><p id="revenueEl">0</p></div>
+<div class="card"><h3>Orders</h3><p id="orderEl">0</p></div>
 <div class="card"><h3>AOV</h3><p id="aovEl">0</p></div>
+<div class="card"><h3>Profit</h3><p id="labaEl">0</p></div>
 </div>
 
-<!-- REGIONAL -->
+<!-- CHART -->
+<div class="card">
+<h3>Trend</h3>
+<canvas id="trendChart"></canvas>
+</div>
+
+<div class="grid">
+<div class="card">
+<h3>Payment</h3>
+<canvas id="pieChart"></canvas>
+</div>
+
+<div class="card">
+<h3>Top Produk</h3>
+<ul id="produkList"></ul>
+</div>
+</div>
+
+<div class="grid">
 <div class="card">
 <h3>Regional</h3>
 <ul id="region"></ul>
 </div>
 
-<!-- PAYMENT -->
-<div class="card">
-<h3>Payment</h3>
-<canvas id="paymentChart"></canvas>
-</div>
-
-<!-- FINANCIAL -->
-<div class="grid">
-<div class="card"><h3>Kotor</h3><p id="kotorEl">0</p></div>
-<div class="card"><h3>Diskon</h3><p id="diskonEl">0</p></div>
-<div class="card"><h3>Biaya</h3><p id="biayaEl">0</p></div>
-<div class="card"><h3>Laba</h3><p id="labaEl">0</p></div>
-</div>
-
-<!-- ZAKAT -->
-<div class="card">
-<h3>Zakat 2.5%</h3>
-<p id="zakatEl">0</p>
-</div>
-
-<!-- AI -->
 <div class="card">
 <h3>🤖 AI Insight</h3>
-<p id="ai">Menunggu data...</p>
-<button onclick="aiInsight()">Analisis</button>
+<p id="ai"></p>
+</div>
+</div>
+
+<div class="card">
+<h3>Export</h3>
+<button onclick="downloadPDF()">Download PDF</button>
 </div>
 
 </div>
 
 <script>
 
-// ==========================
-// AUTO DATA (SIMULASI GOOGLE AI)
-// ==========================
-async function loadAutoData(){
-try{
-let res = await fetch("https://dummyjson.com/carts"); // bisa diganti API Google Sheets / AI
-let json = await res.json();
+// =====================
+// GLOBAL
+// =====================
+let rawData = [];
+let data = [];
 
-data = json.carts.map(c=>({
-produk:"Produk",
-amount:c.total,
-discount:c.discountedTotal ? c.total - c.discountedTotal : 0,
-fee:Math.random()*5000,
-province:"Jawa Barat",
-city:"Bandung",
-payment:["Cash","GoPay","Transfer"][Math.floor(Math.random()*3)]
+// =====================
+// CHART
+// =====================
+const trendChart = new Chart(document.getElementById("trendChart"), {
+type:"line",
+data:{labels:[],datasets:[{label:"Revenue",data:[]}]}
+});
+
+const pieChart = new Chart(document.getElementById("pieChart"), {
+type:"pie",
+data:{labels:["Cash","GoPay","Transfer"],datasets:[{data:[0,0,0]}]}
+});
+
+// =====================
+// LOAD GOOGLE SHEETS
+// =====================
+async function loadAutoData(){
+
+const url = "PASTE_LINK_GOOGLE_SHEETS";
+
+let res = await fetch(url);
+let text = await res.text();
+
+let json = JSON.parse(text.substring(47).slice(0,-2));
+let rows = json.table.rows;
+
+rawData = rows.map(r => ({
+produk: r.c[0]?.v,
+amount: +r.c[1]?.v,
+discount: +r.c[2]?.v,
+fee: +r.c[3]?.v,
+province: r.c[4]?.v,
+city: r.c[5]?.v,
+payment: r.c[6]?.v,
+date: new Date()
 }));
 
+data = [...rawData];
+
+initFilter();
 render();
-}catch(e){
-console.log("Gagal load auto data", e);
-}
 }
 
-// ==========================
-// DATA STORAGE
-// ==========================
-let data = JSON.parse(localStorage.getItem("data")) || [];
+// =====================
+// FILTER
+// =====================
+function initFilter(){
+let produkSet = [...new Set(rawData.map(d=>d.produk))];
 
-// ==========================
-// CHART
-// ==========================
-const chart = new Chart(document.getElementById("paymentChart"), {
-type:"pie",
-data:{
-labels:["Cash","GoPay","Transfer"],
-datasets:[{data:[0,0,0]}]
+filterProduk.innerHTML = "<option value=''>Semua</option>";
+produkSet.forEach(p=>{
+filterProduk.innerHTML += `<option>${p}</option>`;
+});
 }
+
+function applyFilter(){
+
+let start = new Date(startDate.value);
+let end = new Date(endDate.value);
+let produk = filterProduk.value;
+
+data = rawData.filter(d=>{
+return (!produk || d.produk==produk);
 });
 
-// ==========================
-// TAMBAH DATA MANUAL
-// ==========================
-function tambah(){
-let d={
-produk:produk.value,
-amount:+amount.value,
-discount:+discount.value||0,
-fee:+fee.value||0,
-province:province.value,
-city:city.value,
-payment:payment.value
-};
-
-if(!d.produk||!d.amount) return alert("Isi data!");
-
-data.push(d);
-save();
 render();
 }
 
-// ==========================
-// SAVE
-// ==========================
-function save(){
-localStorage.setItem("data",JSON.stringify(data));
-}
-
-// ==========================
-// RENDER DASHBOARD
-// ==========================
+// =====================
+// RENDER
+// =====================
 function render(){
 
-let revenue=data.reduce((a,b)=>a+b.amount,0);
-let order=data.length;
-let aov=order?(revenue/order).toFixed(0):0;
+let revenue = data.reduce((a,b)=>a+b.amount,0);
+let order = data.length;
+let aov = order?revenue/order:0;
+let laba = revenue
+- data.reduce((a,b)=>a+b.discount,0)
+- data.reduce((a,b)=>a+b.fee,0);
 
-revenueEl.innerText=revenue;
-orderEl.innerText=order;
-aovEl.innerText=aov;
+revenueEl.innerText = revenue;
+orderEl.innerText = order;
+aovEl.innerText = aov.toFixed(0);
+labaEl.innerText = laba;
 
-// REGIONAL
-let regionCount={};
+// TREND
+let trend = {};
 data.forEach(d=>{
-let key=d.province+" - "+d.city;
-regionCount[key]=(regionCount[key]||0)+1;
+let t = new Date(d.date).toLocaleDateString();
+trend[t] = (trend[t]||0)+d.amount;
 });
 
-region.innerHTML="";
-Object.entries(regionCount).forEach(r=>{
-region.innerHTML+=`<li>${r[0]} : ${r[1]}</li>`;
-});
+trendChart.data.labels = Object.keys(trend);
+trendChart.data.datasets[0].data = Object.values(trend);
+trendChart.update();
 
 // PAYMENT
 let pay={Cash:0,GoPay:0,Transfer:0};
 data.forEach(d=> pay[d.payment]++);
 
-chart.data.datasets[0].data=[pay.Cash,pay.GoPay,pay.Transfer];
-chart.update();
+pieChart.data.datasets[0].data=[pay.Cash,pay.GoPay,pay.Transfer];
+pieChart.update();
 
-// FINANCIAL
-let kotor=revenue;
-let diskon=data.reduce((a,b)=>a+b.discount,0);
-let biaya=data.reduce((a,b)=>a+b.fee,0);
-let laba=kotor-diskon-biaya;
+// PRODUK
+let produk={};
+data.forEach(d=>{
+produk[d.produk]=(produk[d.produk]||0)+d.amount;
+});
 
-kotorEl.innerText=kotor;
-diskonEl.innerText=diskon;
-biayaEl.innerText=biaya;
-labaEl.innerText=laba;
+produkList.innerHTML="";
+Object.entries(produk)
+.sort((a,b)=>b[1]-a[1])
+.forEach(p=>{
+produkList.innerHTML+=`<li>${p[0]} : ${p[1]}</li>`;
+});
 
-zakatEl.innerText=(laba*0.025).toFixed(0);
+// REGIONAL
+let regionData={};
+data.forEach(d=>{
+let key=d.province+"-"+d.city;
+regionData[key]=(regionData[key]||0)+1;
+});
 
-save();
+region.innerHTML="";
+Object.entries(regionData).forEach(r=>{
+region.innerHTML+=`<li>${r[0]} : ${r[1]}</li>`;
+});
+
+// AI
+let bestProduk = Object.keys(produk).reduce((a,b)=>produk[a]>produk[b]?a:b);
+
+ai.innerText = `
+Revenue: ${revenue}
+Produk Terlaris: ${bestProduk}
+Rekomendasi: ${aov>50000?"Scale bisnis":"Perbanyak promo"}
+`;
+
 }
 
-// ==========================
-// AI INSIGHT (LEBIH CERDAS)
-// ==========================
-function aiInsight(){
-
-if(data.length==0){
-ai.innerText="Belum ada data";
-return;
-}
-
-let revenue=data.reduce((a,b)=>a+b.amount,0);
-let avg=revenue/data.length;
-
-// cari payment terbaik
-let pay={Cash:0,GoPay:0,Transfer:0};
-data.forEach(d=> pay[d.payment]++);
-
-let bestPay = Object.keys(pay).reduce((a,b)=> pay[a]>pay[b]?a:b);
-
-let insight="";
-
-if(avg>50000){
-insight+="Penjualan tinggi. Fokus produk premium.\n";
-}else{
-insight+="Penjualan rendah. Perlu promo.\n";
-}
-
-insight+=`Metode pembayaran terbaik: ${bestPay}`;
-
-ai.innerText=`Revenue ${revenue} | Avg ${avg}\n${insight}`;
-}
-
-// ==========================
+// =====================
 // PDF
-// ==========================
+// =====================
 function downloadPDF(){
 const { jsPDF } = window.jspdf;
 const doc = new jsPDF();
 
-doc.text("Laporan Penjualan",10,10);
+doc.text("Enterprise Report",10,10);
 doc.text("Revenue: "+revenueEl.innerText,10,20);
-doc.text("Laba: "+labaEl.innerText,10,30);
-doc.text("Zakat: "+zakatEl.innerText,10,40);
+doc.text("Profit: "+labaEl.innerText,10,30);
 
-doc.save("laporan.pdf");
+doc.save("report.pdf");
 }
 
-// ==========================
-// INIT
-// ==========================
-loadAutoData(); // AUTO dari API
-render();
+// =====================
+setInterval(loadAutoData,5000);
+loadAutoData();
 
 </script>
 
