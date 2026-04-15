@@ -1,272 +1,129 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Enterprise SmartPOS Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartPOS Enterprise</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf"></script>
 
 <style>
-body { margin:0; font-family:Arial; background:#0f172a; color:white;}
-.sidebar {
-width:220px; height:100vh; position:fixed;
-background:#020617; padding:20px;
-}
-.sidebar h2 { font-size:18px; }
-.sidebar p { color:#94a3b8; cursor:pointer; }
-
-.main { margin-left:240px; padding:20px; }
-
-.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:15px;}
-.card {
-background:#1e293b;
-padding:15px;
-border-radius:12px;
-box-shadow:0 4px 10px rgba(0,0,0,0.3);
-}
-
-input,select {
-padding:8px; width:100%; margin-top:5px;
-background:#020617; color:white; border:none;
-}
+body {margin:0; font-family:Arial; background:#0f172a; color:white;}
+.container {padding:20px;}
+.card {background:#1e293b; padding:15px; border-radius:10px; margin-bottom:15px;}
+input,select,button {padding:10px; width:100%; margin-top:5px;}
 </style>
 </head>
 
 <body>
 
-<div class="sidebar">
-<h2>📊 SmartPOS</h2>
-<p>Dashboard</p>
-<p>Laporan</p>
-<p>AI Insight</p>
-</div>
+<div class="container">
 
-<div class="main">
-
-<h2>Enterprise Dashboard</h2>
-
-<!-- FILTER -->
-<div class="grid">
+<h2>🔐 Login</h2>
 <div class="card">
-<h3>Filter</h3>
-<input type="date" id="startDate">
-<input type="date" id="endDate">
-<select id="filterProduk"></select>
-<button onclick="applyFilter()">Apply</button>
-</div>
+<input id="user" placeholder="Username">
+<input id="pass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
 </div>
 
-<!-- KPI -->
-<div class="grid">
-<div class="card"><h3>Revenue</h3><p id="revenueEl">0</p></div>
-<div class="card"><h3>Orders</h3><p id="orderEl">0</p></div>
-<div class="card"><h3>AOV</h3><p id="aovEl">0</p></div>
-<div class="card"><h3>Profit</h3><p id="labaEl">0</p></div>
-</div>
+<div id="app" style="display:none">
 
-<!-- CHART -->
-<div class="card">
-<h3>Trend</h3>
-<canvas id="trendChart"></canvas>
-</div>
-
-<div class="grid">
-<div class="card">
-<h3>Payment</h3>
-<canvas id="pieChart"></canvas>
-</div>
+<h2>📊 Dashboard</h2>
 
 <div class="card">
-<h3>Top Produk</h3>
-<ul id="produkList"></ul>
-</div>
+<p id="kpi"></p>
 </div>
 
-<div class="grid">
-<div class="card">
-<h3>Regional</h3>
-<ul id="region"></ul>
-</div>
+<canvas id="chart"></canvas>
 
 <div class="card">
 <h3>🤖 AI Insight</h3>
 <p id="ai"></p>
-</div>
+<button onclick="getAI()">Ambil Insight</button>
 </div>
 
+<h2>🛒 Kasir</h2>
 <div class="card">
-<h3>Export</h3>
-<button onclick="downloadPDF()">Download PDF</button>
+<input id="produk" placeholder="Produk">
+<input id="amount" placeholder="Harga">
+<select id="payment">
+<option>Cash</option>
+<option>GoPay</option>
+<option>Transfer</option>
+</select>
+<button onclick="order()">Tambah Order</button>
+</div>
+
 </div>
 
 </div>
 
 <script>
 
-// =====================
-// GLOBAL
-// =====================
-let rawData = [];
-let data = [];
+let API = "https://YOUR_BACKEND_URL";
 
 // =====================
-// CHART
+// LOGIN
 // =====================
-const trendChart = new Chart(document.getElementById("trendChart"), {
-type:"line",
-data:{labels:[],datasets:[{label:"Revenue",data:[]}]}
-});
-
-const pieChart = new Chart(document.getElementById("pieChart"), {
-type:"pie",
-data:{labels:["Cash","GoPay","Transfer"],datasets:[{data:[0,0,0]}]}
-});
-
-// =====================
-// LOAD GOOGLE SHEETS
-// =====================
-async function loadAutoData(){
-
-const url = "PASTE_LINK_GOOGLE_SHEETS";
-
-let res = await fetch(url);
-let text = await res.text();
-
-let json = JSON.parse(text.substring(47).slice(0,-2));
-let rows = json.table.rows;
-
-rawData = rows.map(r => ({
-produk: r.c[0]?.v,
-amount: +r.c[1]?.v,
-discount: +r.c[2]?.v,
-fee: +r.c[3]?.v,
-province: r.c[4]?.v,
-city: r.c[5]?.v,
-payment: r.c[6]?.v,
-date: new Date()
-}));
-
-data = [...rawData];
-
-initFilter();
-render();
+function login(){
+if(user.value=="admin" && pass.value=="123"){
+app.style.display="block";
+}else{
+alert("Login gagal");
+}
 }
 
 // =====================
-// FILTER
+// LOAD DATA
 // =====================
-function initFilter(){
-let produkSet = [...new Set(rawData.map(d=>d.produk))];
+async function load(){
+let res = await fetch(API+"/data");
+let data = await res.json();
 
-filterProduk.innerHTML = "<option value=''>Semua</option>";
-produkSet.forEach(p=>{
-filterProduk.innerHTML += `<option>${p}</option>`;
+let revenue = data.reduce((a,b)=>a+b.order_amount,0);
+
+kpi.innerText = "Revenue: "+revenue;
+
+// chart
+new Chart(document.getElementById("chart"),{
+type:"bar",
+data:{
+labels:data.map(d=>d.produk),
+datasets:[{data:data.map(d=>d.order_amount)}]
+}
 });
 }
 
-function applyFilter(){
-
-let start = new Date(startDate.value);
-let end = new Date(endDate.value);
-let produk = filterProduk.value;
-
-data = rawData.filter(d=>{
-return (!produk || d.produk==produk);
+// =====================
+// ORDER (KASIR)
+// =====================
+async function order(){
+await fetch(API+"/order",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+produk:produk.value,
+amount:parseFloat(amount.value),
+payment:payment.value,
+province:"Jabar",
+city:"Bandung"
+})
 });
 
-render();
+alert("Order masuk!");
+load();
 }
 
 // =====================
-// RENDER
-// =====================
-function render(){
-
-let revenue = data.reduce((a,b)=>a+b.amount,0);
-let order = data.length;
-let aov = order?revenue/order:0;
-let laba = revenue
-- data.reduce((a,b)=>a+b.discount,0)
-- data.reduce((a,b)=>a+b.fee,0);
-
-revenueEl.innerText = revenue;
-orderEl.innerText = order;
-aovEl.innerText = aov.toFixed(0);
-labaEl.innerText = laba;
-
-// TREND
-let trend = {};
-data.forEach(d=>{
-let t = new Date(d.date).toLocaleDateString();
-trend[t] = (trend[t]||0)+d.amount;
-});
-
-trendChart.data.labels = Object.keys(trend);
-trendChart.data.datasets[0].data = Object.values(trend);
-trendChart.update();
-
-// PAYMENT
-let pay={Cash:0,GoPay:0,Transfer:0};
-data.forEach(d=> pay[d.payment]++);
-
-pieChart.data.datasets[0].data=[pay.Cash,pay.GoPay,pay.Transfer];
-pieChart.update();
-
-// PRODUK
-let produk={};
-data.forEach(d=>{
-produk[d.produk]=(produk[d.produk]||0)+d.amount;
-});
-
-produkList.innerHTML="";
-Object.entries(produk)
-.sort((a,b)=>b[1]-a[1])
-.forEach(p=>{
-produkList.innerHTML+=`<li>${p[0]} : ${p[1]}</li>`;
-});
-
-// REGIONAL
-let regionData={};
-data.forEach(d=>{
-let key=d.province+"-"+d.city;
-regionData[key]=(regionData[key]||0)+1;
-});
-
-region.innerHTML="";
-Object.entries(regionData).forEach(r=>{
-region.innerHTML+=`<li>${r[0]} : ${r[1]}</li>`;
-});
-
 // AI
-let bestProduk = Object.keys(produk).reduce((a,b)=>produk[a]>produk[b]?a:b);
-
-ai.innerText = `
-Revenue: ${revenue}
-Produk Terlaris: ${bestProduk}
-Rekomendasi: ${aov>50000?"Scale bisnis":"Perbanyak promo"}
-`;
-
+// =====================
+async function getAI(){
+let res = await fetch(API+"/ai");
+let d = await res.json();
+ai.innerText = d.insight;
 }
 
 // =====================
-// PDF
-// =====================
-function downloadPDF(){
-const { jsPDF } = window.jspdf;
-const doc = new jsPDF();
-
-doc.text("Enterprise Report",10,10);
-doc.text("Revenue: "+revenueEl.innerText,10,20);
-doc.text("Profit: "+labaEl.innerText,10,30);
-
-doc.save("report.pdf");
-}
-
-// =====================
-setInterval(loadAutoData,5000);
-loadAutoData();
+load();
 
 </script>
 
